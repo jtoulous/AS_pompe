@@ -1,15 +1,22 @@
+import os
+import logging
+import warnings
 import pandas as pd
 import argparse as ap
 from pandas import to_datetime
+from colorama import Fore, Style
 
 from sklearn.model_selection import train_test_split
 
-from utils.tools import CreateSaveRepo, ApplyFilters
-from utils.models import AvailableModels, CheckModels, GetModels, SaveModel
+from utils.tools import CreateSaveRepo
+from utils.models import AvailableModels, CheckModels, GetModels, SaveModel, SaveSubmodel
 from utils.metrics import GetMetrics, GetWeights
-#from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
+from utils.filter import ApplyFilters
+from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
 
 
+warnings.filterwarnings("ignore")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 
@@ -22,8 +29,7 @@ def Parsing():
     parser.add_argument('-grid_search', action='store_true', default=False, help='activate grid search')
     args = parser.parse_args()
     
-#    if args.filters is True:
-#        args.filters = GetFilters()
+    args.save = os.path.join(os.getcwd(), 'data', args.save)
 
     if CheckModels(args.models) is False:
         raise Exception('Error: one of the models chosen is not available int this prog')
@@ -32,12 +38,13 @@ def Parsing():
 
 
 
-def TrainModels(df, args):
+def TrainModels(df, args, submodel=None):
     numeric_columns = df.select_dtypes(include=['number']).columns
     results = {}
-    best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
 
     for label in numeric_columns:
+        logging.info(Fore.GREEN + f'===================   Training {label}  ===================' + Style.RESET_ALL)
+        best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
         features = [col for col in numeric_columns if col != label]
         X_train, X_test, y_train, y_test = train_test_split(df[features], df[label], test_size=0.2, random_state=42)
         
@@ -48,6 +55,7 @@ def TrainModels(df, args):
 
         for model in models_to_test:
             model_name = model.__class__.__name__
+            logging.info(Fore.LIGHTBLUE_EX + f'  Testing {model_name}...' + Style.RESET_ALL)
             model.fit(X_train, y_train)
             y_pred_train = model.predict(X_train)
             y_pred_test = model.predict(X_test)
@@ -80,13 +88,21 @@ def TrainModels(df, args):
                 'True': y_test,
                 'Predicted': y_pred_test
             })
-            test_results.to_csv(f'data/{args.save}/results/{label}/test_results.csv', sep=';', index=False)
+            if submodel is None:
+                test_results.to_csv(f'{args.save}/results/main_model/{label}/test_results.csv', sep=';', index=False)
+            else:
+                test_results.to_csv(f'{args.save}/results/{submodel}/{label}/test_results.csv', sep=';', index=False)
 
+            logging.info(Fore.LIGHTBLUE_EX + f'   ==> r2: {metrics_test['R2']}' + Style.RESET_ALL)
             if metrics_test['R2'] > best_model['results']['test'].get('R2', -float('inf')):
                 best_model['model'] = model
                 best_model['results'] = results[model_name]
-        SaveModel(args.save, label, best_model, results)
-
+        
+        logging.info(f'{best_model['model'].__class__.__name__} ==> {best_model['results']['test']['R2']}')
+        if submodel is None:
+            SaveModel(args.save, label, best_model, results)
+        else:
+            SaveSubmodel(args.save, label, best_model, results, submodel)
 
 
 
@@ -99,17 +115,23 @@ if __name__ == '__main__':
     try:
         args = Parsing()
 
-        df = ApplyFilters(pd.read_csv(args.datafile, sep=';'), args.filters)
-#        df_motor = MotorFeatures(df)
-#        df_hydraulics = HydraulicsFeatures(df)
-#        df_electrics = ElectricsFeatures(df)
+        logging.info('Reading data...')
+        df = pd.read_csv(args.datafile, sep=';')
 
-        CreateSaveRepo(df, args.save)
+        df = ApplyFilters(df, args.filters, args.save)
+        df_motor = MotorFeatures(df)
+        df_hydraulics = HydraulicsFeatures(df)
+        df_electrics = ElectricsFeatures(df)
+
+        CreateSaveRepo(df, args.save, 'main_model')
+        CreateSaveRepo(df_motor, args.save, 'Motor')
+        CreateSaveRepo(df_hydraulics, args.save, 'Hydraulics')
+        CreateSaveRepo(df_electrics, args.save, 'Electrics')
 
         TrainModels(df, args)
-#        TrainSubModels('motor', df_motor, args)
-#        TrainSubModels('hydraulics', df_hydraulics, args)
-#        TrainSubModels('electrics', df_electrics, args)
+        TrainModels(df_motor, args, submodel='Motor')
+        TrainModels(df_hydraulics, args, submodel='Hydraulics')
+        TrainModels(df_electrics, args, submodel='Electrics')
 
 
 
