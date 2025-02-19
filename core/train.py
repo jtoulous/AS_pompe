@@ -127,7 +127,7 @@ if __name__ == '__main__':
         df_hydraulics = HydraulicsFeatures(df_master)
         df_electrics = ElectricsFeatures(df_master)
 
-        #Creation des dossier de sauvegarde
+        #Creation des dossiers de sauvegarde
         CreateSaveRepo(df_master, args.save, 'Master')
         CreateSaveRepo(df_motor, args.save, 'Motor')
         CreateSaveRepo(df_hydraulics, args.save, 'Hydraulics')

@@ -21,6 +21,45 @@ def Parsing():
     return args
 
 
+def SaveResults(save_repo, weights, model_discrepancy, status, agent):
+    output_folder = f'{save_repo}/prediction_results'
+    os.makedirs(output_folder, exist_ok=True)
+
+    results = {
+        "weights": weights,
+        "model_discrepancy": model_discrepancy,
+        "status": status
+    }
+
+    with open(f'{output_folder}/{agent}_results.json', "w") as f:
+        json.dump(results, f, indent=4)
+
+    CreatePlot(output_folder, weights, model_discrepancy, status, agent)
+
+
+
+def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
+    # Créer un DataFrame à partir des poids
+    weights_df = pd.DataFrame(list(weights.items()), columns=["Variable", "Weight"])
+
+    # Créer un graphique interactif avec Altair
+    chart = alt.Chart(weights_df).mark_bar().encode(
+        x=alt.X('Variable:N', sort='-y', title='Variable'),
+        y=alt.Y('Weight:Q', title='Weight (%)'),
+        tooltip=['Variable', 'Weight']
+    ).properties(
+        title='Variable Weights',
+        width=800,
+        height=400
+    ).interactive()
+    
+    chart.save(f'{save_repo}/{agent}_chart.html')
+
+    print(f"Global Model Deviation: {model_discrepancy:.2f}")
+    print(f"Status: {'green' if status == 'green' else 'red'}")
+
+
+
 def Predict(df, args, agent):
     numeric_columns = df.select_dtypes(include='number').columns
     inference_results = {}
@@ -62,45 +101,6 @@ def Predict(df, args, agent):
 
     SaveResults(args.load, weights, model_discrepancy, status, agent)
     return status
-
-
-
-def SaveResults(save_repo, weights, model_discrepancy, status, agent):
-    output_folder = f'{save_repo}/prediction_results'
-    os.makedirs(output_folder, exist_ok=True)
-
-    results = {
-        "weights": weights,
-        "model_discrepancy": model_discrepancy,
-        "status": status
-    }
-
-    with open(f'{output_folder}/{agent}_results.json', "w") as f:
-        json.dump(results, f, indent=4)
-
-    CreatePlot(output_folder, weights, model_discrepancy, status, agent)
-
-
-
-def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
-    # Créer un DataFrame à partir des poids
-    weights_df = pd.DataFrame(list(weights.items()), columns=["Variable", "Weight"])
-
-    # Créer un graphique interactif avec Altair
-    chart = alt.Chart(weights_df).mark_bar().encode(
-        x=alt.X('Variable:N', sort='-y', title='Variable'),
-        y=alt.Y('Weight:Q', title='Weight (%)'),
-        tooltip=['Variable', 'Weight']
-    ).properties(
-        title='Variable Weights',
-        width=800,
-        height=400
-    ).interactive()
-    
-    chart.save(f'{save_repo}/{agent}_chart.html')
-
-    print(f"Global Model Deviation: {model_discrepancy:.2f}")
-    print(f"Status: {'green' if status == 'green' else 'red'}")
 
 
 
