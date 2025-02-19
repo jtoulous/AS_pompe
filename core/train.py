@@ -9,7 +9,7 @@ from colorama import Fore, Style
 from sklearn.model_selection import train_test_split
 
 from utils.tools import CreateSaveRepo
-from utils.models import AvailableModels, CheckModels, GetModels, SaveModel, SaveSubmodel
+from utils.models import AvailableModels, CheckModels, GetModels, SaveModel
 from utils.metrics import GetMetrics, GetWeights
 from utils.filter import ApplyFilters
 from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
@@ -32,37 +32,41 @@ def Parsing():
     args.save = os.path.join(os.getcwd(), 'data', args.save)
 
     if CheckModels(args.models) is False:
-        raise Exception('Error: one of the models chosen is not available int this prog')
+        raise Exception('Error: one of the models chosen is not available in this prog')
     return args
 
 
 
 
-def TrainModels(df, args, submodel=None):
+def TrainModels(df, args, agent):
     numeric_columns = df.select_dtypes(include=['number']).columns
     results = {}
 
+    # Iteration sur chaque colonne
     for label in numeric_columns:
         logging.info(Fore.GREEN + f'===================   Training {label}  ===================' + Style.RESET_ALL)
-        best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
+        
         features = [col for col in numeric_columns if col != label]
         X_train, X_test, y_train, y_test = train_test_split(df[features], df[label], test_size=0.2, random_state=42)
+        best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
         
+        # Grid-search si l'option est True, sinon instance de modele par default
         if args.grid_search is False:
             models_to_test = GetModels(args.models)
         else:
             models_to_test = GetModels(args.models, grid_search=True, X=X_train, y=y_train)
 
+        # Iteration sur chaque modele a tester
         for model in models_to_test:
+            logging.info(Fore.LIGHTBLUE_EX + f'  Testing {model.__class__.__name__}...' + Style.RESET_ALL)
             model_name = model.__class__.__name__
-            logging.info(Fore.LIGHTBLUE_EX + f'  Testing {model_name}...' + Style.RESET_ALL)
             model.fit(X_train, y_train)
             y_pred_train = model.predict(X_train)
             y_pred_test = model.predict(X_test)
 
+            # Recuperation des metrics d'entrainement et de test
             metrics_train = GetMetrics(y_train, y_pred_train)
             metrics_test = GetMetrics(y_test, y_pred_test)
-
             features_weights = GetWeights(model, features)
 
             min_value = df[label].min()
@@ -83,26 +87,25 @@ def TrainModels(df, args, submodel=None):
                 }
             }
 
+            # Sauvegarde des inferences sur le test dans un df
             test_results = pd.DataFrame({
                 'Date': df.loc[X_test.index, 'Date'].apply(to_datetime),
                 'True': y_test,
                 'Predicted': y_pred_test
             })
-            if submodel is None:
-                test_results.to_csv(f'{args.save}/results/main_model/{label}/test_results.csv', sep=';', index=False)
-            else:
-                test_results.to_csv(f'{args.save}/results/{submodel}/{label}/test_results.csv', sep=';', index=False)
+            test_results.to_csv(f'{args.save}/results/{agent}/{label}/test_results.csv', sep=';', index=False)
 
             logging.info(Fore.LIGHTBLUE_EX + f'   ==> r2: {metrics_test['R2']}' + Style.RESET_ALL)
+
+            # On garde les metrics du meilleur modele
             if metrics_test['R2'] > best_model['results']['test'].get('R2', -float('inf')):
                 best_model['model'] = model
                 best_model['results'] = results[model_name]
         
         logging.info(f'{best_model['model'].__class__.__name__} ==> {best_model['results']['test']['R2']}')
-        if submodel is None:
-            SaveModel(args.save, label, best_model, results)
-        else:
-            SaveSubmodel(args.save, label, best_model, results, submodel)
+
+        # Sauvegarde du meilleur modele et des metrics
+        SaveModel(args.save, label, best_model, results, agent)
 
 
 
@@ -118,20 +121,23 @@ if __name__ == '__main__':
         logging.info('Reading data...')
         df = pd.read_csv(args.datafile, sep=';')
 
-        df = ApplyFilters(df, args.filters, args.save)
-        df_motor = MotorFeatures(df)
-        df_hydraulics = HydraulicsFeatures(df)
-        df_electrics = ElectricsFeatures(df)
+        #Application filtres + creation des df des sous-agent via feature engineering
+        df_master = ApplyFilters(df, args.filters, args.save)
+        df_motor = MotorFeatures(df_master)
+        df_hydraulics = HydraulicsFeatures(df_master)
+        df_electrics = ElectricsFeatures(df_master)
 
-        CreateSaveRepo(df, args.save, 'main_model')
+        #Creation des dossier de sauvegarde
+        CreateSaveRepo(df_master, args.save, 'Master')
         CreateSaveRepo(df_motor, args.save, 'Motor')
         CreateSaveRepo(df_hydraulics, args.save, 'Hydraulics')
         CreateSaveRepo(df_electrics, args.save, 'Electrics')
 
-        TrainModels(df, args)
-        TrainModels(df_motor, args, submodel='Motor')
-        TrainModels(df_hydraulics, args, submodel='Hydraulics')
-        TrainModels(df_electrics, args, submodel='Electrics')
+        #Entrainement agent principale + agent specialise
+        TrainModels(df_master, args, 'Master')
+        TrainModels(df_motor, args, 'Motor')
+        TrainModels(df_hydraulics, args, 'Hydraulics')
+        TrainModels(df_electrics, args, 'Electrics')
 
 
 

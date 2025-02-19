@@ -179,22 +179,13 @@ def GetGrid(model_name):
 
 
 
-def SaveModel(save_repo, label, best_model, results):
+
+def SaveModel(save_repo, label, best_model, results, agent):
     logging.info(f'Saving best model and metrics for {label}...\n')
-    with open(f'{save_repo}/models/main_model/{label}_best_model.pkl', 'wb') as model_file:
+    with open(f'{save_repo}/models/{agent}/{label}_best_model.pkl', 'wb') as model_file:
         pickle.dump(best_model['model'], model_file)
 
-    with open(f'{save_repo}/results/main_model/{label}/metrics.json', 'w') as metrics_file:
-        json.dump({'best_model': best_model['results'], 'all_models': results}, metrics_file)
-
-
-
-def SaveSubmodel(save_repo, label, best_model, results, submodel):
-    logging.info(f'Saving best model and metrics for {label}...\n')
-    with open(f'{save_repo}/models/{submodel}/{label}_best_model.pkl', 'wb') as model_file:
-        pickle.dump(best_model['model'], model_file)
-
-    with open(f'{save_repo}/results/{submodel}/{label}/metrics.json', 'w') as metrics_file:
+    with open(f'{save_repo}/results/{agent}/{label}/metrics.json', 'w') as metrics_file:
         json.dump({'best_model': best_model['results'], 'all_models': results}, metrics_file)
 
 

@@ -1,7 +1,8 @@
 import os
 import json
+import logging
 import pandas as pd
-
+from colorama import Style, Fore
 
 
 def PromptColumns(df):
@@ -10,10 +11,11 @@ def PromptColumns(df):
 
     done = 0
     while done == 0:
+        print()
         for i, column in enumerate(numeric_columns):
             print(f'{i} - {column}')
         print('\'done\' if finished')
-        chosen_idx = input('\nChoose an index: ')
+        chosen_idx = input(Fore.GREEN + '\nChoose an index: ' + Style.RESET_ALL)
         
         if chosen_idx == 'done':
             done = 1
@@ -40,14 +42,14 @@ def PromptFilters(columns_to_filter):
     for row in columns_to_filter:
         done = 0
         while done == 0:
-            filter_opt = input(f'\nFilter {row}:\n 1 - Greater than\n 2 - Less than\n 3 - Equal to\n\n 1, 2 or 3: ')
+            filter_opt = input(f'\nFilter {row}:\n 1 - Greater than\n 2 - Less than\n 3 - Equal to\n\n{Fore.GREEN}1, 2 or 3: {Style.RESET_ALL}')
             try:
                 filter_opt = int(filter_opt)
                 if filter_opt != 1 and filter_opt != 2 and filter_opt != 3:
                     raise Exception('bad input')
                 filter_opt = 'Greater than' if filter_opt == 1 else 'Less than' if filter_opt == 2 else 'Equal to'
 
-                filter_val = input('\nEnter filter Value: ')
+                filter_val = input(Fore.GREEN + '\nEnter filter Value: ' + Style.RESET_ALL)
                 try: 
                     filter_val = int(filter_val)
                 except Exception:

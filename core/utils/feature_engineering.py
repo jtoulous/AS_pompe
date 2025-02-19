@@ -7,7 +7,6 @@ from sklearn.pipeline import Pipeline
 
 
 
-
 def MotorFeatures(dataframe):
     logging.info('Creating df for motor models...')
     df = dataframe.copy()
@@ -18,6 +17,7 @@ def MotorFeatures(dataframe):
     ])
     df = preprocess.fit_transform(df)
     
+    # Colonne a garder dans le df a return
     wanted_features = [
         'Date',
         'Motor load',
@@ -37,6 +37,7 @@ def HydraulicsFeatures(dataframe):
     ])
     df = preprocess.fit_transform(df)
     
+    # Colonne a garder dans le df a return
     wanted_features = [
         'Date',
         'Flow_Pressure',
@@ -57,6 +58,7 @@ def ElectricsFeatures(dataframe):
     ])
     df = preprocess.fit_transform(df)
     
+    # Colonne a garder dans le df a return
     wanted_features = [
         'Date',
         'Voltage imbalance',
