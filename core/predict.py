@@ -1,11 +1,11 @@
 import os
+import json
+import pickle
 import pandas as pd
 import argparse as ap
-
-import json
 import numpy as np
-import pickle
 import altair as alt
+from colorama import Fore, Style
 
 from utils.tools import LoadModel, LoadMetrics
 from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
@@ -19,6 +19,7 @@ def Parsing():
     args = parser.parse_args()
     args.load = os.path.join(os.getcwd(), 'data', args.load)
     return args
+
 
 
 def SaveResults(save_repo, weights, model_discrepancy, status, agent):
@@ -84,6 +85,7 @@ def Predict(df, args, agent):
             f'Predicted_{label}': y_pred,
             f'Relative_Deviation_{label}': relative_deviation
         })
+        # a rajouter: save le df
 
         total_relative_deviation[label] = relative_deviation.abs().sum()
         total_relative_deviation_sum += total_relative_deviation[label]
@@ -104,6 +106,62 @@ def Predict(df, args, agent):
 
 
 
+#def LoadFilters(df, equipment_folder):
+#    metadata_path = os.path.join(equipment_folder, "metadata.json")
+#    if os.path.exists(metadata_path):
+#        with open(metadata_path, 'r') as metadata_file:
+#            metadata = json.load(metadata_file)
+#            filters_dict = metadata.get("filters", {})
+#            if filters_dict:
+#                for var, (op, thresh) in filters_dict.items():
+#                    if op == "Greater than":
+#                        df = df[df[var] > thresh]
+#                    elif op == "Less than":
+#                        df = df[df[var] < thresh]
+#                    else:
+#                        df = df[df[var] == thresh]
+#    return df
+
+
+
+
+def CheckFirstAnomaly(df, args, agent, batch_size=100):
+    i = 0
+    numeric_columns = df.select_dtypes(include='number').columns
+    for _, batch in df.groupby(np.arange(len(df)) // batch_size):
+        total_relative_deviation = {}
+        total_relative_deviation_sum = 0
+        
+        for label in numeric_columns:
+            model = LoadModel(args.load, agent, label) 
+            _, range_dict = LoadMetrics(args.load, agent, label)
+
+            features = [col for col in numeric_columns if col != label]
+            X = batch[features]
+            y_pred = model.predict(X)
+            max_val = range_dict['max_value']
+            min_val = range_dict['min_value']
+
+            relative_deviation = ((batch[label] - y_pred) / (max_val - min_val)) ** 2
+            total_relative_deviation[label] = relative_deviation.abs().sum()
+            total_relative_deviation_sum += total_relative_deviation[label]
+
+        n_variables = len(numeric_columns)
+        model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
+        status = "green" if model_discrepancy <= 3 else "red"
+
+        if status == 'red':
+            print(f'\nAnomalie detected between {batch['Date'].iloc[0]} - {batch['Date'].iloc[-1]}:')
+            for var, deviation in total_relative_deviation.items():
+                print(f'  - Deviation {var}  ===>  {deviation}')
+            return  # On arrête dès qu'on trouve une anomalie
+        i += 1
+    return
+
+
+
+
+
 if __name__ == '__main__':
     try:
         args = Parsing()        
@@ -112,8 +170,11 @@ if __name__ == '__main__':
 #        df_master = LoadFilters(df, args.load)
         df_master = df
 
-        print('\n========  Inference Master  ========')
+        print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
         status = Predict(df_master, args, 'Master')
+        if status == 'red':
+            CheckFirstAnomaly(df_master, args, 'Master') # Fait les inferences par batch pour trouver le commencement de la derive
+
 
         # Si Master detecte de l'anomalie, on regarde quelle zone presente le plus d'anomalie
         if status == 'red':
@@ -121,14 +182,21 @@ if __name__ == '__main__':
             df_hydraulics = HydraulicsFeatures(df_master)
             df_electrics = ElectricsFeatures(df_master)
 
-            print('\n========  Inference Motor  ========')
-            Predict(df_motor, args, 'Motor')
+            print(Fore.BLUE + '\n========  Inference Motor  ========' + Style.RESET_ALL)
+            status = Predict(df_motor, args, 'Motor')
+            if status == 'red':
+                CheckFirstAnomaly(df_motor, args, 'Motor')
 
-            print('\n========  Inference Hydraulics  ========')
-            Predict(df_hydraulics, args, 'Hydraulics')
 
-            print('\n========  Inference Electrics  ========')
-            Predict(df_electrics, args, 'Electrics')
+            print(Fore.BLUE + '\n========  Inference Hydraulics  ========' + Style.RESET_ALL)
+            status = Predict(df_hydraulics, args, 'Hydraulics')
+            if status == 'red':
+                CheckFirstAnomaly(df_hydraulics, args, 'Hydraulics')
+
+            print(Fore.BLUE + '\n========  Inference Electrics  ========' + Style.RESET_ALL)
+            status = Predict(df_electrics, args, 'Electrics')
+            if status == 'red':
+                CheckFirstAnomaly(df_electrics, args, 'Electrics')
 
 
     except Exception as error:

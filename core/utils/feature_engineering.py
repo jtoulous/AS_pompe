@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+import numpy as np
 
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.pipeline import Pipeline
@@ -202,4 +203,130 @@ class ThermalAnomaly(TransformerMixin, BaseEstimator):
     def transform(self, X, y=None):
         X['Thermal anomaly'] = X['Temperature'] / X['Current']
         X = X.dropna().reset_index(drop=True)
+        return X
+
+
+class Max(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Max_{self.column}'] = X[self.column].rolling(window=self.window).max()
+        return X
+
+
+class Min(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Min_{self.column}'] = X[self.column].rolling(window=self.window).min()
+        return X
+
+
+class Mean(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Mean_{self.column}'] = X[self.column].rolling(window=self.window).mean()
+        return X
+
+
+class Std(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Std_{self.column}'] = X[self.column].rolling(window=self.window).std()
+        return X
+
+
+class Rms(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Rms_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
+        return X
+
+
+class Kurt(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Kurt_{self.column}'] = X[self.column].rolling(window=self.window).kurt()
+        return X
+
+
+class Crest(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Crest_{self.column}'] = X[self.column].rolling(window=self.window).max() / np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
+        return X
+
+
+class Form(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Form_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean()) / X[self.column].rolling(window=self.window).mean()
+        return X
+
+
+class Skew(TransformerMixin, BaseEstimator):
+    def __init__(self, column, window=50):
+        self.column = column
+        self.window = window
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        X[f'Skew_{self.column}'] = X[self.column].rolling(window=self.window).skew()
         return X
