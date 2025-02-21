@@ -27,6 +27,13 @@ def Parsing():
     parser.add_argument('-models', nargs='+', type=str, default=AvailableModels(), help='models to be tested')
     parser.add_argument('-filters', action='store_true', default=False, help='apply filters')
     parser.add_argument('-grid_search', action='store_true', default=False, help='activate grid search')
+    parser.add_argument(
+        "-subagent",
+        nargs=2,
+        action="append",
+        metavar=("nom_agent", "nom_df"),
+        help="Associer un fichier de données à un agent. Exemple: -subagent agent1 df1.csv -subagent agent2 df2.csv"
+    )
     args = parser.parse_args()
     
     args.save = os.path.join(os.getcwd(), 'data', args.save)
@@ -117,27 +124,24 @@ def TrainModels(df, args, agent):
 if __name__ == '__main__':
     try:
         args = Parsing()
+        dataframes = {}
 
+        # Load Master agent df + sub agents, and apply filters
         logging.info('Reading data...')
-        df = pd.read_csv(args.datafile, sep=';')
+        dataframes['Master'] = pd.read_csv(args.datafile, sep=';')
+        for subagent in args.subagent:
+            subagent_name = subagent[0]
+            subagent_datafile = subagent[1]
+            dataframes[subagent_name] = pd.read_csv(subagent_datafile, sep=';')
+#        dataframes = ApplyFilters(dataframes)
 
-        #Application filtres + creation des df des sous-agent via feature engineering
-        df_master = ApplyFilters(df, args.filters, args.save)
-        df_motor = MotorFeatures(df_master)
-        df_hydraulics = HydraulicsFeatures(df_master)
-        df_electrics = ElectricsFeatures(df_master)
+        # Create save repos for each agent
+        for agent_name, df in dataframes.items():
+            CreateSaveRepo(df, args.save, agent_name)
 
-        #Creation des dossiers de sauvegarde
-        CreateSaveRepo(df_master, args.save, 'Master')
-        CreateSaveRepo(df_motor, args.save, 'Motor')
-        CreateSaveRepo(df_hydraulics, args.save, 'Hydraulics')
-        CreateSaveRepo(df_electrics, args.save, 'Electrics')
-
-        #Entrainement agent principale + agent specialise
-        TrainModels(df_master, args, 'Master')
-        TrainModels(df_motor, args, 'Motor')
-        TrainModels(df_hydraulics, args, 'Hydraulics')
-        TrainModels(df_electrics, args, 'Electrics')
+        # Train all agents
+        for agent_name, df in dataframes.items():
+            TrainModels(df, args, agent_name)
 
 
 

@@ -15,6 +15,13 @@ def Parsing():
     parser = ap.ArgumentParser()
     parser.add_argument('datafile', type=str, help='csv datafile')
     parser.add_argument('load', type=str, help='repo with saved models')
+    parser.add_argument(
+        "-subagent",
+        nargs=2,
+        action="append",
+        metavar=("nom_agent", "nom_df"),
+        help="Associer un fichier de données à un agent. Exemple: -subagent agent1 df1.csv -subagent agent2 df2.csv"
+    )
 
     args = parser.parse_args()
     args.load = os.path.join(os.getcwd(), 'data', args.load)
@@ -126,7 +133,6 @@ def Predict(df, args, agent):
 
 
 def CheckFirstAnomaly(df, args, agent, batch_size=100):
-    i = 0
     numeric_columns = df.select_dtypes(include='number').columns
     for _, batch in df.groupby(np.arange(len(df)) // batch_size):
         total_relative_deviation = {}
@@ -151,11 +157,10 @@ def CheckFirstAnomaly(df, args, agent, batch_size=100):
         status = "green" if model_discrepancy <= 3 else "red"
 
         if status == 'red':
-            print(f'\nAnomalie detected between {batch['Date'].iloc[0]} - {batch['Date'].iloc[-1]}:')
+            print(f'\nAnomalie started between {batch['Date'].iloc[0]} - {batch['Date'].iloc[-1]}:')
             for var, deviation in total_relative_deviation.items():
                 print(f'  - Deviation {var}  ===>  {deviation}')
             return  # On arrête dès qu'on trouve une anomalie
-        i += 1
     return
 
 
@@ -166,37 +171,32 @@ if __name__ == '__main__':
     try:
         args = Parsing()        
         
+        # Load Master df 
         df = pd.read_csv(args.datafile, sep=';')
-#        df_master = LoadFilters(df, args.load)
+#        df_master = LoadFilters(df, args.load, 'Master')
         df_master = df
 
+        # Master agent predicts
         print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
         status = Predict(df_master, args, 'Master')
         if status == 'red':
             CheckFirstAnomaly(df_master, args, 'Master') # Fait les inferences par batch pour trouver le commencement de la derive
 
 
-        # Si Master detecte de l'anomalie, on regarde quelle zone presente le plus d'anomalie
+        # Si Master detecte de l'anomalie, on regarde quelle zone presente le plus d'anomalie, si des sous-agents sont declares
         if status == 'red':
-            df_motor = MotorFeatures(df_master)
-            df_hydraulics = HydraulicsFeatures(df_master)
-            df_electrics = ElectricsFeatures(df_master)
+            for subagent in args.subagent:
+                subagent_name = subagent[0]
+                subagent_datafile = subagent[1]
+                
+                # Load subagent preprocessed df
+                df = pd.read_csv(subagent_datafile, sep=';')
+#                df = LoadFilters(df, args.load, subagent_name)
 
-            print(Fore.BLUE + '\n========  Inference Motor  ========' + Style.RESET_ALL)
-            status = Predict(df_motor, args, 'Motor')
-            if status == 'red':
-                CheckFirstAnomaly(df_motor, args, 'Motor')
-
-
-            print(Fore.BLUE + '\n========  Inference Hydraulics  ========' + Style.RESET_ALL)
-            status = Predict(df_hydraulics, args, 'Hydraulics')
-            if status == 'red':
-                CheckFirstAnomaly(df_hydraulics, args, 'Hydraulics')
-
-            print(Fore.BLUE + '\n========  Inference Electrics  ========' + Style.RESET_ALL)
-            status = Predict(df_electrics, args, 'Electrics')
-            if status == 'red':
-                CheckFirstAnomaly(df_electrics, args, 'Electrics')
+                print(Fore.BLUE + f'\n========  Inference {subagent_name}  ========' + Style.RESET_ALL)
+                status = Predict(df, args, subagent_name)
+                if status == 'red':
+                    CheckFirstAnomaly(df, args, subagent_name)
 
 
     except Exception as error:
