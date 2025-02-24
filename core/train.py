@@ -48,7 +48,7 @@ def Parsing():
 def TrainModels(df, args, agent):
     numeric_columns = df.select_dtypes(include=['number']).columns
     results = {}
-
+#    breakpoint()
     # Iteration sur chaque colonne
     for label in numeric_columns:
         logging.info(Fore.GREEN + f'===================   Training {label}  ===================' + Style.RESET_ALL)
@@ -129,12 +129,13 @@ if __name__ == '__main__':
         # Load Master agent df + sub agents, and apply filters
         logging.info('Reading data...')
         dataframes['Master'] = pd.read_csv(args.datafile, sep=';')
+
         for subagent in args.subagent:
             subagent_name = subagent[0]
             subagent_datafile = subagent[1]
             dataframes[subagent_name] = pd.read_csv(subagent_datafile, sep=';')
 #        dataframes = ApplyFilters(dataframes)
-
+ 
         # Create save repos for each agent
         for agent_name, df in dataframes.items():
             CreateSaveRepo(df, args.save, agent_name)

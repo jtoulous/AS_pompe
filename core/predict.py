@@ -63,8 +63,11 @@ def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
     
     chart.save(f'{save_repo}/{agent}_chart.html')
 
+    if status == 'green':
+        print(Fore.GREEN + "Status: Green" + Style.RESET_ALL)
+    else:
+        print(Fore.RED + "Status: Red" + Style.RESET_ALL)
     print(f"Global Model Deviation: {model_discrepancy:.2f}")
-    print(f"Status: {'green' if status == 'green' else 'red'}")
 
 
 
@@ -161,6 +164,7 @@ def CheckFirstAnomaly(df, args, agent, batch_size=100):
             for var, deviation in total_relative_deviation.items():
                 print(f'  - Deviation {var}  ===>  {deviation}')
             return  # On arrête dès qu'on trouve une anomalie
+    print('No anomalies found on batch inferences.')
     return
 
 
