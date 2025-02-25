@@ -134,7 +134,7 @@ class FlowPressureRatio(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X, y=None):
-        X['Flow_Pressure'] = X['Volume Flow RateRMS'] / X['Pressure']
+        X['Flow_Pressure'] = X['Flow'] / X['Pressure']
         X = X.dropna().reset_index(drop=True)
         return X
 
@@ -148,7 +148,7 @@ class HydraulicEfficiency(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X, y=None):
-        X['Hydraulic efficiency'] = (X['Volume Flow RateRMS'] * X['Pressure']) / (X['Current'] * X['Voltage'])
+        X['Hydraulic efficiency'] = (X['Flow'] * X['Pressure']) / (X['Current'] * X['Voltage'])
         X = X.dropna().reset_index(drop=True)
         return X
 

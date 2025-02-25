@@ -1,4 +1,4 @@
-Date;Current;Pressure;Temperature;Thermocouple;Voltage;Volume Flow RateRMS
+Date;Current;Pressure;Temperature;Thermocouple;Voltage;Flow
 2020-03-01 15:44:06;1.27794;0.054711;92.2562;22.2577;209.639;76.0197
 2020-03-01 15:44:07;1.12118;-0.273216;92.0144;22.2577;221.25;76.9806
 2020-03-01 15:44:08;1.93242;0.054711;92.2413;22.2748;236.615;76.0197

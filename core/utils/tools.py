@@ -6,7 +6,7 @@ import pickle
 import pandas as pd
 
 
-def CreateSaveRepo(df, save_repo, agent):
+def CreateSaveRepo(save_repo, agent, variables):
     logging.info('Creating save repository...')
     
     # Suppression de l'ancien repo si il existe deja
@@ -17,8 +17,7 @@ def CreateSaveRepo(df, save_repo, agent):
     os.makedirs(f'{save_repo}/models/{agent}', exist_ok=True)
     os.makedirs(f'{save_repo}/results/{agent}', exist_ok=True)
 
-    numeric_vars = df.select_dtypes(include=['number']).columns
-    for var in numeric_vars:
+    for var in variables.keys():
         os.makedirs(f'{save_repo}/results/{agent}/{var}', exist_ok=True)
 
 

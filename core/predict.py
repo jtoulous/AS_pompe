@@ -1,5 +1,6 @@
 import os
 import json
+import yaml
 import pickle
 import pandas as pd
 import argparse as ap
@@ -13,15 +14,8 @@ from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, Electri
 
 def Parsing():
     parser = ap.ArgumentParser()
-    parser.add_argument('datafile', type=str, help='csv datafile')
+    parser.add_argument('datafile', type=str, help='csv datafile to predict')
     parser.add_argument('load', type=str, help='repo with saved models')
-    parser.add_argument(
-        "-subagent",
-        nargs=2,
-        action="append",
-        metavar=("nom_agent", "nom_df"),
-        help="Associer un fichier de données à un agent. Exemple: -subagent agent1 df1.csv -subagent agent2 df2.csv"
-    )
 
     args = parser.parse_args()
     args.load = os.path.join(os.getcwd(), 'data', args.load)
@@ -71,17 +65,15 @@ def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
 
 
 
-def Predict(df, args, agent):
-    numeric_columns = df.select_dtypes(include='number').columns
+def Predict(df, args, agent, agent_config):
     inference_results = {}
     total_relative_deviation = {}
     total_relative_deviation_sum = 0
 
-    for label in numeric_columns:
+    for label, features in agent_config.items():
         model = LoadModel(args.load, agent, label) 
         training_rmse, range_dict = LoadMetrics(args.load, agent, label)
 
-        features = [col for col in numeric_columns if col != label]
         X = df[features]
         y_pred = model.predict(X)
         max_val = range_dict['max_value']
@@ -100,15 +92,15 @@ def Predict(df, args, agent):
         total_relative_deviation[label] = relative_deviation.abs().sum()
         total_relative_deviation_sum += total_relative_deviation[label]
 
-    n_variables = len(numeric_columns)
+    n_variables = len(agent_config)
     model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
     status = "green" if model_discrepancy <= 3 else "red"
 
     weights = {}
-    for variable in numeric_columns:
-        variable_relative_deviation = total_relative_deviation[variable]
-        weight = variable_relative_deviation / total_relative_deviation_sum
-        weights[variable] = weight * 100
+    for label in agent_config.keys():
+        label_relative_deviation = total_relative_deviation[label]
+        weight = label_relative_deviation / total_relative_deviation_sum
+        weights[label] = weight * 100
     weights = dict(sorted(weights.items(), key=lambda item: item[1], reverse=True))
 
     SaveResults(args.load, weights, model_discrepancy, status, agent)
@@ -135,17 +127,15 @@ def Predict(df, args, agent):
 
 
 
-def CheckFirstAnomaly(df, args, agent, batch_size=100):
-    numeric_columns = df.select_dtypes(include='number').columns
+def CheckFirstAnomaly(df, args, agent, agent_config, batch_size=100):
     for _, batch in df.groupby(np.arange(len(df)) // batch_size):
         total_relative_deviation = {}
         total_relative_deviation_sum = 0
         
-        for label in numeric_columns:
+        for label, features in agent_config.items():
             model = LoadModel(args.load, agent, label) 
             _, range_dict = LoadMetrics(args.load, agent, label)
 
-            features = [col for col in numeric_columns if col != label]
             X = batch[features]
             y_pred = model.predict(X)
             max_val = range_dict['max_value']
@@ -155,7 +145,7 @@ def CheckFirstAnomaly(df, args, agent, batch_size=100):
             total_relative_deviation[label] = relative_deviation.abs().sum()
             total_relative_deviation_sum += total_relative_deviation[label]
 
-        n_variables = len(numeric_columns)
+        n_variables = len(agent_config)
         model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
         status = "green" if model_discrepancy <= 3 else "red"
 
@@ -164,6 +154,7 @@ def CheckFirstAnomaly(df, args, agent, batch_size=100):
             for var, deviation in total_relative_deviation.items():
                 print(f'  - Deviation {var}  ===>  {deviation}')
             return  # On arrête dès qu'on trouve une anomalie
+
     print('No anomalies found on batch inferences.')
     return
 
@@ -174,33 +165,28 @@ def CheckFirstAnomaly(df, args, agent, batch_size=100):
 if __name__ == '__main__':
     try:
         args = Parsing()        
-        
-        # Load Master df 
+        config = None
+
+        # Load dataframe + filter it
         df = pd.read_csv(args.datafile, sep=';')
-#        df_master = LoadFilters(df, args.load, 'Master')
-        df_master = df
+#        df = LoadFilters(df, args.load)
+
+        # Load conf.yaml
+        with open(f'{args.load}/conf.yaml', 'r') as config_file:
+            config = yaml.safe_load(config_file)
 
         # Master agent predicts
         print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
-        status = Predict(df_master, args, 'Master')
+        status = Predict(df, args, 'Master', config['Master'])
         if status == 'red':
-            CheckFirstAnomaly(df_master, args, 'Master') # Fait les inferences par batch pour trouver le commencement de la derive
+            CheckFirstAnomaly(df, args, 'Master', config['Master']) # Fait les inferences par batch pour trouver le commencement de la derive
 
-
-        # Si Master detecte de l'anomalie, on regarde quelle zone presente le plus d'anomalie, si des sous-agents sont declares
-        if status == 'red':
-            for subagent in args.subagent:
-                subagent_name = subagent[0]
-                subagent_datafile = subagent[1]
-                
-                # Load subagent preprocessed df
-                df = pd.read_csv(subagent_datafile, sep=';')
-#                df = LoadFilters(df, args.load, subagent_name)
-
-                print(Fore.BLUE + f'\n========  Inference {subagent_name}  ========' + Style.RESET_ALL)
-                status = Predict(df, args, subagent_name)
+            subagents = [agent for agent in config.keys() if agent != 'Master']
+            for agent in subagents:
+                print(Fore.BLUE + f'\n========  Inference {agent}  ========' + Style.RESET_ALL)
+                status = Predict(df, args, agent, config[agent])
                 if status == 'red':
-                    CheckFirstAnomaly(df, args, subagent_name)
+                    CheckFirstAnomaly(df, args, agent, config[agent]) # Fait les inferences par batch pour trouver le commencement de la derive
 
 
     except Exception as error:

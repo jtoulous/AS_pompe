@@ -1,0 +1,25 @@
+Master:
+  Current: ["Pressure", "Temperature", "Thermocouple", "Voltage", "Flow"]
+  Pressure: ["Current", "Temperature", "Thermocouple", "Voltage", "Flow", "Motor load", "Temperature drift", "Voltage imbalance", "Overcurrent detection", "Thermal anomaly"]
+  Temperature: ["Pressure", "Current", "Thermocouple", "Voltage", "Flow"]
+  Thermocouple: ["Pressure", "Current", "Temperature", "Voltage", "Flow"]
+  Voltage: ["Pressure", "Current", "Temperature", "Thermocouple", "Flow"]
+  Flow: ["Pressure", "Current", "Temperature", "Thermocouple", "Voltage"]
+
+
+Motors:
+  "Motor load": ["Pressure", "Thermocouple", "Flow"]
+  "Motor efficiency": ["Temperature", "Thermocouple", "Flow", "Temperature drift"]
+  "Temperature drift": ["Pressure", "Current", "Thermocouple", "Voltage", "Flow", "Motor efficiency"]
+
+
+Hydraulics:
+  "Flow_Pressure": ["Current", "Temperature", "Thermocouple", "Voltage"]
+  "Hydraulic efficiency": ["Temperature", "Thermocouple"]
+  "Cavitation index": ["Current", "Temperature", "Thermocouple", "Voltage", "Flow"]
+
+
+Electrics:
+  "Voltage imbalance": ["Pressure", "Current", "Temperature", "Thermocouple", "Flow", "Overcurrent detection"]
+  "Overcurrent detection": ["Pressure", "Temperature", "Thermocouple", "Voltage", "Flow", "Voltage imbalance"]
+  "Thermal anomaly": ["Pressure", "Thermocouple", "Flow", "Voltage", "Voltage imbalance"]

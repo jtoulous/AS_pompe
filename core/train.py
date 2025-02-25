@@ -1,5 +1,6 @@
 import os
 import logging
+import yaml
 import warnings
 import pandas as pd
 import argparse as ap
@@ -24,16 +25,10 @@ def Parsing():
     parser = ap.ArgumentParser()
     parser.add_argument('datafile', type=str, help='csv datafile')
     parser.add_argument('save', type=str, help='name of the folder to save models and results')
+    parser.add_argument('config', type=str, help='yaml config file') 
     parser.add_argument('-models', nargs='+', type=str, default=AvailableModels(), help='models to be tested')
     parser.add_argument('-filters', action='store_true', default=False, help='apply filters')
     parser.add_argument('-grid_search', action='store_true', default=False, help='activate grid search')
-    parser.add_argument(
-        "-subagent",
-        nargs=2,
-        action="append",
-        metavar=("nom_agent", "nom_df"),
-        help="Associer un fichier de données à un agent. Exemple: -subagent agent1 df1.csv -subagent agent2 df2.csv"
-    )
     args = parser.parse_args()
     
     args.save = os.path.join(os.getcwd(), 'data', args.save)
@@ -45,15 +40,14 @@ def Parsing():
 
 
 
-def TrainModels(df, args, agent):
-    numeric_columns = df.select_dtypes(include=['number']).columns
+def TrainModels(df, args, agent, variables):
     results = {}
-#    breakpoint()
+
     # Iteration sur chaque colonne
-    for label in numeric_columns:
+    for label, features in variables.items():
         logging.info(Fore.GREEN + f'===================   Training {label}  ===================' + Style.RESET_ALL)
-        
-        features = [col for col in numeric_columns if col != label]
+        logging.info(f'Features: {features}')
+
         X_train, X_test, y_train, y_test = train_test_split(df[features], df[label], test_size=0.2, random_state=42)
         best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
         
@@ -116,35 +110,29 @@ def TrainModels(df, args, agent):
 
 
 
-#def TrainSubModels(sub_type, df, args):
-
-
-
 
 if __name__ == '__main__':
     try:
         args = Parsing()
-        dataframes = {}
-        sub_predictors = {}
+        config = None
 
-        # Load Master agent df + sub agents, and apply filters
+        # Load dataframe + apply filters
         logging.info('Reading data...')
-        dataframes['Master'] = pd.read_csv(args.datafile, sep=';')
-
-        for subagent in args.subagent:
-            subagent_name = subagent[0]
-            subagent_datafile = subagent[1]
-            dataframes[subagent_name] = pd.read_csv(subagent_datafile, sep=';')
-            sub_predictors[subagent_name] = 
-#        dataframes = ApplyFilters(dataframes)
+        df = pd.read_csv(args.datafile, sep=';')
+#        df = ApplyFilters(df)
+        
+        # Load yaml config file
+        with open(args.config, 'r') as config_file:
+            config = yaml.safe_load(config_file)
  
-        # Create save repos for each agent
-        for agent_name, df in dataframes.items():
-            CreateSaveRepo(df, args.save, agent_name)
+        # Create save repo and train each agent
+        for agent_name, variables in config.items():
+            CreateSaveRepo(args.save, agent_name, variables)
+            TrainModels(df, args, agent_name, variables)
 
-        # Train all agents
-        for agent_name, df in dataframes.items():
-            TrainModels(df, args, agent_name)
+        # Duplicate and save config file
+        with open(f'{args.save}/conf.yaml', 'w') as config_file:
+            yaml.dump(config, config_file, default_flow_style=False)
 
 
 
