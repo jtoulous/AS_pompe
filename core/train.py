@@ -125,6 +125,7 @@ if __name__ == '__main__':
     try:
         args = Parsing()
         dataframes = {}
+        sub_predictors = {}
 
         # Load Master agent df + sub agents, and apply filters
         logging.info('Reading data...')
@@ -134,6 +135,7 @@ if __name__ == '__main__':
             subagent_name = subagent[0]
             subagent_datafile = subagent[1]
             dataframes[subagent_name] = pd.read_csv(subagent_datafile, sep=';')
+            sub_predictors[subagent_name] = 
 #        dataframes = ApplyFilters(dataframes)
  
         # Create save repos for each agent

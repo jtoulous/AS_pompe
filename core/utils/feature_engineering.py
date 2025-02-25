@@ -19,13 +19,14 @@ def MotorFeatures(dataframe):
     df = preprocess.fit_transform(df)
     
     # Colonne a garder dans le df a return
-    wanted_features = [
-        'Date',
-        'Motor load',
-        'Motor efficiency',
-        'Temperature drift'
-    ]
-    return df[wanted_features]
+#    wanted_features = [
+#        'Date',
+#        'Motor load',
+#        'Motor efficiency',
+#        'Temperature drift'
+#    ]
+#    return df[wanted_features]
+    return df
 
 
 def HydraulicsFeatures(dataframe):
@@ -39,14 +40,14 @@ def HydraulicsFeatures(dataframe):
     df = preprocess.fit_transform(df)
     
     # Colonne a garder dans le df a return
-    wanted_features = [
-        'Date',
-        'Flow_Pressure',
-        'Hydraulic efficiency',
-        'Cavitation index'
-    ]
-    return df[wanted_features]
-
+#    wanted_features = [
+#        'Date',
+#        'Flow_Pressure',
+#        'Hydraulic efficiency',
+#        'Cavitation index'
+#    ]
+#    return df[wanted_features]
+    return df
 
 
 def ElectricsFeatures(dataframe):
@@ -60,14 +61,14 @@ def ElectricsFeatures(dataframe):
     df = preprocess.fit_transform(df)
     
     # Colonne a garder dans le df a return
-    wanted_features = [
-        'Date',
-        'Voltage imbalance',
-        'Overcurrent detection',
-        'Thermal anomaly'
-    ]
-    return df[wanted_features]
-
+#    wanted_features = [
+#        'Date',
+#        'Voltage imbalance',
+#        'Overcurrent detection',
+#        'Thermal anomaly'
+#    ]
+#    return df[wanted_features]
+    return df
 
 
 
