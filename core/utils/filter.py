@@ -82,11 +82,29 @@ def FilterDataframe(df, filters, save_repo):
 
 
 
-def ApplyFilters(df, filters, save_repo):
-    if filters is True:
+def ApplyFilters(df, filters_opt, save_repo):
+    if filters_opt is True:
         logging.info('Filtering Data...')
         columns_to_filter = PromptColumns(df)
         if columns_to_filter:
             filters = PromptFilters(columns_to_filter)
             df = FilterDataframe(df, filters, save_repo)
+    return df
+
+
+
+def LoadFilters(df, equipment_folder):
+    metadata_path = os.path.join(equipment_folder, "metadata.json")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as metadata_file:
+            metadata = json.load(metadata_file)
+            filters_dict = metadata.get("filters", {})
+            if filters_dict:
+                for var, (op, thresh) in filters_dict.items():
+                    if op == "Greater than":
+                        df = df[df[var] > thresh]
+                    elif op == "Less than":
+                        df = df[df[var] < thresh]
+                    else:
+                        df = df[df[var] == thresh]
     return df

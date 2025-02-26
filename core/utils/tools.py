@@ -9,11 +9,6 @@ import pandas as pd
 def CreateSaveRepo(save_repo, agent, variables):
     logging.info('Creating save repository...')
     
-    # Suppression de l'ancien repo si il existe deja
-    if os.path.exists(save_repo) and agent == 'Master':
-        shutil.rmtree(save_repo)
-    
-    os.makedirs(save_repo, exist_ok=True)
     os.makedirs(f'{save_repo}/models/{agent}', exist_ok=True)
     os.makedirs(f'{save_repo}/results/{agent}', exist_ok=True)
 

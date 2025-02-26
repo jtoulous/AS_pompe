@@ -2,6 +2,7 @@ import os
 import json
 import yaml
 import pickle
+import shutil
 import pandas as pd
 import argparse as ap
 import numpy as np
@@ -9,7 +10,7 @@ import altair as alt
 from colorama import Fore, Style
 
 from utils.tools import LoadModel, LoadMetrics
-from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
+from utils.filter import LoadFilters
 
 
 def Parsing():
@@ -19,13 +20,22 @@ def Parsing():
 
     args = parser.parse_args()
     args.load = os.path.join(os.getcwd(), 'data', args.load)
+
+    # Suppression des anciennes inferences
+    if os.path.exists(f'{args.load}/inference_results'):
+        shutil.rmtree(f'{args.load}/inference_results')
+    
     return args
 
 
 
-def SaveResults(save_repo, weights, model_discrepancy, status, agent):
-    output_folder = f'{save_repo}/prediction_results'
+def SaveResults(save_repo, weights, model_discrepancy, inference_results, status, agent):
+    output_folder = f'{save_repo}/inference_results/{agent}'
     os.makedirs(output_folder, exist_ok=True)
+
+    # Save les dfs d'inferences
+    for label, df in inference_results.items():
+        df.to_csv(f'{output_folder}/{label}_results.csv', sep=';', index=None)
 
     results = {
         "weights": weights,
@@ -33,9 +43,11 @@ def SaveResults(save_repo, weights, model_discrepancy, status, agent):
         "status": status
     }
 
-    with open(f'{output_folder}/{agent}_results.json', "w") as f:
+    # Save les resultats
+    with open(f'{output_folder}/results.json', "w") as f:
         json.dump(results, f, indent=4)
 
+    # Creation des charts avec les weights
     CreatePlot(output_folder, weights, model_discrepancy, status, agent)
 
 
@@ -55,7 +67,7 @@ def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
         height=400
     ).interactive()
     
-    chart.save(f'{save_repo}/{agent}_chart.html')
+    chart.save(f'{save_repo}/weights_chart.html')
 
     if status == 'green':
         print(Fore.GREEN + "Status: Green" + Style.RESET_ALL)
@@ -87,6 +99,7 @@ def Predict(df, args, agent, agent_config):
             f'Predicted_{label}': y_pred,
             f'Relative_Deviation_{label}': relative_deviation
         })
+
         # a rajouter: save le df
 
         total_relative_deviation[label] = relative_deviation.abs().sum()
@@ -103,27 +116,8 @@ def Predict(df, args, agent, agent_config):
         weights[label] = weight * 100
     weights = dict(sorted(weights.items(), key=lambda item: item[1], reverse=True))
 
-    SaveResults(args.load, weights, model_discrepancy, status, agent)
+    SaveResults(args.load, weights, model_discrepancy, inference_results, status, agent)
     return status
-
-
-
-#def LoadFilters(df, equipment_folder):
-#    metadata_path = os.path.join(equipment_folder, "metadata.json")
-#    if os.path.exists(metadata_path):
-#        with open(metadata_path, 'r') as metadata_file:
-#            metadata = json.load(metadata_file)
-#            filters_dict = metadata.get("filters", {})
-#            if filters_dict:
-#                for var, (op, thresh) in filters_dict.items():
-#                    if op == "Greater than":
-#                        df = df[df[var] > thresh]
-#                    elif op == "Less than":
-#                        df = df[df[var] < thresh]
-#                    else:
-#                        df = df[df[var] == thresh]
-#    return df
-
 
 
 
@@ -169,7 +163,7 @@ if __name__ == '__main__':
 
         # Load dataframe + filter it
         df = pd.read_csv(args.datafile, sep=';')
-#        df = LoadFilters(df, args.load)
+        df = LoadFilters(df, args.load)
 
         # Load conf.yaml
         with open(f'{args.load}/conf.yaml', 'r') as config_file:
@@ -178,15 +172,17 @@ if __name__ == '__main__':
         # Master agent predicts
         print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
         status = Predict(df, args, 'Master', config['Master'])
+        
         if status == 'red':
             CheckFirstAnomaly(df, args, 'Master', config['Master']) # Fait les inferences par batch pour trouver le commencement de la derive
 
+            # If status is red, make inferences with subagents
             subagents = [agent for agent in config.keys() if agent != 'Master']
             for agent in subagents:
                 print(Fore.BLUE + f'\n========  Inference {agent}  ========' + Style.RESET_ALL)
                 status = Predict(df, args, agent, config[agent])
                 if status == 'red':
-                    CheckFirstAnomaly(df, args, agent, config[agent]) # Fait les inferences par batch pour trouver le commencement de la derive
+                    CheckFirstAnomaly(df, args, agent, config[agent])
 
 
     except Exception as error:

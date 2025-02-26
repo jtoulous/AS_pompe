@@ -4,6 +4,7 @@ import yaml
 import warnings
 import pandas as pd
 import argparse as ap
+import shutil
 from pandas import to_datetime
 from colorama import Fore, Style
 
@@ -13,7 +14,7 @@ from utils.tools import CreateSaveRepo
 from utils.models import AvailableModels, CheckModels, GetModels, SaveModel
 from utils.metrics import GetMetrics, GetWeights
 from utils.filter import ApplyFilters
-from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
+#from utils.feature_engineering import MotorFeatures, HydraulicsFeatures, ElectricsFeatures
 
 
 warnings.filterwarnings("ignore")
@@ -32,6 +33,11 @@ def Parsing():
     args = parser.parse_args()
     
     args.save = os.path.join(os.getcwd(), 'data', args.save)
+
+    # Suppression de l'ancien repo si il existe deja
+    if os.path.exists(args.save):
+        shutil.rmtree(args.save)
+    os.makedirs(args.save, exist_ok=True)
 
     if CheckModels(args.models) is False:
         raise Exception('Error: one of the models chosen is not available in this prog')
@@ -119,7 +125,7 @@ if __name__ == '__main__':
         # Load dataframe + apply filters
         logging.info('Reading data...')
         df = pd.read_csv(args.datafile, sep=';')
-#        df = ApplyFilters(df)
+        df = ApplyFilters(df, args.filters, args.save)
         
         # Load yaml config file
         with open(args.config, 'r') as config_file:
