@@ -14,6 +14,18 @@ from utils.filter import LoadFilters
 
 
 def Parsing():
+    """
+    Recupere les arguments d'entree du script.
+
+    Args:
+        input du script.
+
+    Return:
+        args(obj Argparse): 
+            - args.datafile(str): le fichier .csv deja preprocessed sur lequel faire l'inference.
+            - args.load(str): le nom du dossier ou les modeles sont sauvegardes.
+    """
+
     parser = ap.ArgumentParser()
     parser.add_argument('datafile', type=str, help='csv datafile to predict')
     parser.add_argument('load', type=str, help='repo with saved models')
@@ -30,6 +42,20 @@ def Parsing():
 
 
 def SaveResults(save_repo, weights, model_discrepancy, inference_results, status, agent):
+    """
+    Sauvegarde les resultat de l'inference.
+
+    Args:
+        save_repo (str): le path du dossier de l'equipement.
+        weights (dict): les poids des variables, {variable: poid}.
+        model_discrepancy (float): le discrepancy du model.
+        inference_results (dict): les resultat des inferences et les vrais valeurs pour chaque variable dans un df, {variable: df}
+        status(str): green ou red.
+        agent(str): nom de l'agent.
+
+    Return:
+        None    
+    """
     output_folder = f'{save_repo}/inference_results/{agent}'
     os.makedirs(output_folder, exist_ok=True)
 
@@ -48,11 +74,24 @@ def SaveResults(save_repo, weights, model_discrepancy, inference_results, status
         json.dump(results, f, indent=4)
 
     # Creation des charts avec les weights
-    CreatePlot(output_folder, weights, model_discrepancy, status, agent)
+    CreatePlot(output_folder, weights, model_discrepancy, status)
 
 
 
-def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
+def CreatePlot(save_repo, weights, model_discrepancy, status):
+    """
+    Cree le plot des poids.
+
+    Args:
+        save_repo (str): le path du dossier de l'equipement.
+        weights (dict): les poids des variables, {variable: poid}.
+        model_discrepancy (float): le discrepancy du modele.
+        status(str): green ou red.
+
+    Return:
+        None
+    """
+
     # Créer un DataFrame à partir des poids
     weights_df = pd.DataFrame(list(weights.items()), columns=["Variable", "Weight"])
 
@@ -77,12 +116,25 @@ def CreatePlot(save_repo, weights, model_discrepancy, status, agent):
 
 
 
-def Predict(df, args, agent, agent_config):
+def Predict(df, args, agent, agents_variables):
+    """
+    Fait l'inference.
+
+    Args:
+        df (dataframe): Le df sur lequel faire les inferences.
+        args (obj Argparse): Les arguments d'entree du script.
+        agent (str): Le nom de l'agent.
+        agents_variables (dict): Les variables de l'agent(key) et ses predictors(value) tirees du fichier de config.
+
+    Return:
+        status (str): green(pas d'anomalie) ou red(anomalie)  
+    """
+
     inference_results = {}
     total_relative_deviation = {}
     total_relative_deviation_sum = 0
 
-    for label, features in agent_config.items():
+    for label, features in agents_variables.items():
         model = LoadModel(args.load, agent, label) 
         training_rmse, range_dict = LoadMetrics(args.load, agent, label)
 
@@ -105,12 +157,12 @@ def Predict(df, args, agent, agent_config):
         total_relative_deviation[label] = relative_deviation.abs().sum()
         total_relative_deviation_sum += total_relative_deviation[label]
 
-    n_variables = len(agent_config)
+    n_variables = len(agents_variables)
     model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
     status = "green" if model_discrepancy <= 3 else "red"
 
     weights = {}
-    for label in agent_config.keys():
+    for label in agents_variables.keys():
         label_relative_deviation = total_relative_deviation[label]
         weight = label_relative_deviation / total_relative_deviation_sum
         weights[label] = weight * 100
@@ -121,12 +173,24 @@ def Predict(df, args, agent, agent_config):
 
 
 
-def CheckFirstAnomaly(df, args, agent, agent_config, batch_size=100):
+def CheckFirstAnomaly(df, args, agent, agents_variables, batch_size=20):
+    """
+    Fait l'inference par batch si la taille du df le permet, pour localiser precisement le debut de la derive.
+
+    Args:
+        df (dataframe): le df.
+        args (obj Argparse): Les arguments d'entree du script.
+        agent (str): Le nom de l'agent.
+        agents_variables (dict): Les variables de l'agent(key) et ses predictors(value) tirees du fichier de config.
+
+    Return:
+        None
+    """
     for _, batch in df.groupby(np.arange(len(df)) // batch_size):
         total_relative_deviation = {}
         total_relative_deviation_sum = 0
         
-        for label, features in agent_config.items():
+        for label, features in agents_variables.items():
             model = LoadModel(args.load, agent, label) 
             _, range_dict = LoadMetrics(args.load, agent, label)
 
@@ -139,7 +203,7 @@ def CheckFirstAnomaly(df, args, agent, agent_config, batch_size=100):
             total_relative_deviation[label] = relative_deviation.abs().sum()
             total_relative_deviation_sum += total_relative_deviation[label]
 
-        n_variables = len(agent_config)
+        n_variables = len(agents_variables)
         model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
         status = "green" if model_discrepancy <= 3 else "red"
 
@@ -187,3 +251,8 @@ if __name__ == '__main__':
 
     except Exception as error:
         print(error)
+
+
+
+## CHECKER LA TAILLE DU DF AVANT DE FAIRE LES INFERENCE PAR BATCH
+# + ADAPTER LA TAILLE DU BATCH EN FONCTION DE LA TAILLE DU DF

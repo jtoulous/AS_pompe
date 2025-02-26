@@ -23,6 +23,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 
 def Parsing():
+    """
+    Recupere les arguments d'entree du script.
+
+    Args:
+        input du script.
+
+    Return:
+        args(obj Argparse): 
+            - args.datafile(str): le fichier .csv deja preprocessed pour l'entrainement.
+            - args.save(str): le nom du dossier ou sauvegarder les modeles et les resultats.
+            - args.config(str): le fichier .yaml avec la structure des agents.
+            - args.models(list(str)): les modeles a tester.
+            - args.filters(str): le fichier .yaml des filtres a appliquer.
+            - args.grid_search(Booleen): pour faire un grid_search des meilleurs hyper-parametres de chaque modele a tester. 
+    """
+    
     parser = ap.ArgumentParser()
     parser.add_argument('datafile', type=str, help='csv datafile')
     parser.add_argument('save', type=str, help='name of the folder to save models and results')
@@ -46,15 +62,28 @@ def Parsing():
 
 
 
-def TrainModels(df, args, agent, variables):
+def TrainModels(df, args, agent, agents_variables):
+    """
+    Entraine l'agent.
+
+    Args:
+        df (dataframe): Le df d'entrainement.
+        args (obj Argparse): Les arguments d'entree du script.
+        agent (str): Le nom de l'agent.
+        agent_variables (dict): Les variables de l'agent(key) et ses predictors(value) tirees du fichier de config.
+
+    Return:
+        None  
+    """
+
     results = {}
 
     # Iteration sur chaque colonne
-    for label, features in variables.items():
-        logging.info(Fore.GREEN + f'===================   Training {label}  ===================' + Style.RESET_ALL)
-        logging.info(f'Features: {features}')
+    for variable, predictors in agents_variables.items():
+        logging.info(Fore.GREEN + f'===================   Training {variable}  ===================' + Style.RESET_ALL)
+        logging.info(f'predictors: {predictors}')
 
-        X_train, X_test, y_train, y_test = train_test_split(df[features], df[label], test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(df[predictors], df[variable], test_size=0.2, random_state=42)
         best_model = {'model': None, 'results': {'train': {}, 'test': {}}}
         
         # Grid-search si l'option est True, sinon instance de modele par default
@@ -74,19 +103,19 @@ def TrainModels(df, args, agent, variables):
             # Recuperation des metrics d'entrainement et de test
             metrics_train = GetMetrics(y_train, y_pred_train)
             metrics_test = GetMetrics(y_test, y_pred_test)
-            features_weights = GetWeights(model, features)
+            predictors_weights = GetWeights(model, predictors)
 
-            min_value = df[label].min()
-            max_value = df[label].max()
+            min_value = df[variable].min()
+            max_value = df[variable].max()
 
             results[model_name] = {
                 'train': {
                     **metrics_train,
-                    'features_weights': features_weights,
+                    'predictors_weights': predictors_weights,
                 },
                 'test': {
                     **metrics_test,
-                    'features_weights': features_weights,
+                    'predictors_weights': predictors_weights,
                 },
                 'range': {
                     'min_value': float(min_value),
@@ -100,7 +129,7 @@ def TrainModels(df, args, agent, variables):
                 'True': y_test,
                 'Predicted': y_pred_test
             })
-            test_results.to_csv(f'{args.save}/results/{agent}/{label}/test_results.csv', sep=';', index=False)
+            test_results.to_csv(f'{args.save}/results/{agent}/{variable}/test_results.csv', sep=';', index=False)
 
             logging.info(Fore.LIGHTBLUE_EX + f'   ==> r2: {metrics_test['R2']}' + Style.RESET_ALL)
 
@@ -112,7 +141,7 @@ def TrainModels(df, args, agent, variables):
         logging.info(f'{best_model['model'].__class__.__name__} ==> {best_model['results']['test']['R2']}')
 
         # Sauvegarde du meilleur modele et des metrics
-        SaveModel(args.save, label, best_model, results, agent)
+        SaveModel(args.save, variable, best_model, results, agent)
 
 
 
