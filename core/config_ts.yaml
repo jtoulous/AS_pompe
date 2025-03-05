@@ -1,0 +1,51 @@
+System:
+  save_repo: "data/pump_1"
+
+Workflow:
+  Master:
+    training_type: "Semi Supervised"
+    model_type: "Regression"
+    df_train: "data/n_preprocessed.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "Current": ["Pressure", "Temperature", "Thermocouple", "Voltage", "Flow"]
+      "Pressure": ["Current", "Temperature", "Thermocouple", "Voltage", "Flow"]
+      "Temperature": ["Pressure", "Current", "Thermocouple", "Voltage", "Flow"]
+      "Thermocouple": ["Pressure", "Current", "Temperature", "Voltage", "Flow"]
+      "Voltage": ["Pressure", "Current", "Temperature", "Thermocouple", "Flow"]
+      "Flow": ["Pressure", "Current", "Temperature", "Thermocouple", "Voltage"]
+    filters:
+      "Current": ["Greater than", 2]
+
+
+  Motors:
+    training_type: "Semi Supervised"
+    model_type: "Time Series"
+    df_train: "data/n_preprocessed.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "Motor load": ["Pressure", "Thermocouple", "Flow"]
+      "Motor efficiency": ["Temperature", "Thermocouple", "Flow", "Temperature drift"]
+      "Temperature drift": ["Pressure", "Current", "Thermocouple", "Voltage", "Flow", "Motor efficiency"]
+
+
+  Hydraulics:
+    training_type: "Semi Supervised"  
+    model_type: "Regression"
+    df_train: "data/n_preprocessed.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "Flow_Pressure": ["Current", "Temperature", "Thermocouple", "Voltage"]
+      "Hydraulic efficiency": ["Temperature", "Thermocouple"]
+      "Cavitation index": ["Current", "Temperature", "Thermocouple", "Voltage", "Flow"]
+
+
+  Electrics:
+    training_type: "Semi Supervised"
+    model_type: "Regression"
+    df_train: "data/n_preprocessed.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "Voltage imbalance": ["Pressure", "Current", "Temperature", "Thermocouple", "Flow", "Overcurrent detection"]
+      "Overcurrent detection": ["Pressure", "Temperature", "Thermocouple", "Voltage", "Flow", "Voltage imbalance"]
+      "Thermal anomaly": ["Pressure", "Thermocouple", "Flow", "Voltage", "Voltage imbalance"]

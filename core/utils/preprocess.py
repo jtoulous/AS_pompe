@@ -8,6 +8,36 @@ from sklearn.pipeline import Pipeline
 
 
 
+def PreprocessByType(df, agent_type):
+    if agent_type == 'Regression':
+        pass
+    elif agent_type == 'Time Series':
+        df = df.sort_values(by='Date')
+    return df
+
+
+def TimeSeriesDF(df, variable):
+    df = df.sort_values(by='Date')
+    preprocess_label = Pipeline([
+        ('Mean', Mean(variable, label=True)),
+        ('Std', Std(variable, label=True)),
+        ('Max', Max(variable, label=True)),
+        ('Min', Min(variable, label=True)),
+        ('Rms', Rms(variable, label=True))
+    ])
+    df = preprocess_label.fit_transform(df)
+    df = df.dropna().reset_index(drop=True)
+    return df
+
+
+
+
+
+
+#################################################
+#####                 TEST                  ####
+################################################
+
 def MotorFeatures(dataframe):
     logging.info('Creating df for motor models...')
     df = dataframe.copy()
@@ -17,15 +47,6 @@ def MotorFeatures(dataframe):
         ('variation temperature', TemperatureDrift())
     ])
     df = preprocess.fit_transform(df)
-    
-    # Colonne a garder dans le df a return
-#    wanted_features = [
-#        'Date',
-#        'Motor load',
-#        'Motor efficiency',
-#        'Temperature drift'
-#    ]
-#    return df[wanted_features]
     return df
 
 
@@ -38,15 +59,6 @@ def HydraulicsFeatures(dataframe):
         ('Indice cavitation', CavitationIndex())
     ])
     df = preprocess.fit_transform(df)
-    
-    # Colonne a garder dans le df a return
-#    wanted_features = [
-#        'Date',
-#        'Flow_Pressure',
-#        'Hydraulic efficiency',
-#        'Cavitation index'
-#    ]
-#    return df[wanted_features]
     return df
 
 
@@ -59,16 +71,8 @@ def ElectricsFeatures(dataframe):
         ('Chauffe_anormale_module', ThermalAnomaly())
     ])
     df = preprocess.fit_transform(df)
-    
-    # Colonne a garder dans le df a return
-#    wanted_features = [
-#        'Date',
-#        'Voltage imbalance',
-#        'Overcurrent detection',
-#        'Thermal anomaly'
-#    ]
-#    return df[wanted_features]
     return df
+##########################################################################
 
 
 
@@ -207,127 +211,147 @@ class ThermalAnomaly(TransformerMixin, BaseEstimator):
         return X
 
 
+
 class Max(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Max_{self.column}'] = X[self.column].rolling(window=self.window).max()
+        if self.label:
+            X[f'Max_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).max()
+        else:
+            X[f'Max_{self.column}'] = X[self.column].rolling(window=self.window).max()
         return X
-
 
 class Min(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Min_{self.column}'] = X[self.column].rolling(window=self.window).min()
+        if self.label:
+            X[f'Min_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).min()
+        else:
+            X[f'Min_{self.column}'] = X[self.column].rolling(window=self.window).min()
         return X
-
 
 class Mean(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Mean_{self.column}'] = X[self.column].rolling(window=self.window).mean()
+        if self.label:
+            X[f'Mean_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).mean()
+        else:
+            X[f'Mean_{self.column}'] = X[self.column].rolling(window=self.window).mean()
         return X
-
 
 class Std(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Std_{self.column}'] = X[self.column].rolling(window=self.window).std()
+        if self.label:
+            X[f'Std_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).std()
+        else:
+            X[f'Std_{self.column}'] = X[self.column].rolling(window=self.window).std()
         return X
-
 
 class Rms(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Rms_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
+        if self.label:
+            X[f'Rms_{self.column}'] = np.sqrt((X[self.column].shift(1) ** 2).rolling(window=self.window).mean())
+        else:
+            X[f'Rms_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
         return X
-
 
 class Kurt(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Kurt_{self.column}'] = X[self.column].rolling(window=self.window).kurt()
+        if self.label:
+            X[f'Kurt_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).kurt()
+        else:
+            X[f'Kurt_{self.column}'] = X[self.column].rolling(window=self.window).kurt()
         return X
-
 
 class Crest(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Crest_{self.column}'] = X[self.column].rolling(window=self.window).max() / np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
+        if self.label:
+            X[f'Crest_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).max() / np.sqrt((X[self.column].shift(1) ** 2).rolling(window=self.window).mean())
+        else:
+            X[f'Crest_{self.column}'] = X[self.column].rolling(window=self.window).max() / np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean())
         return X
-
 
 class Form(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Form_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean()) / X[self.column].rolling(window=self.window).mean()
+        if self.label:
+            X[f'Form_{self.column}'] = np.sqrt((X[self.column].shift(1) ** 2).rolling(window=self.window).mean()) / X[self.column].shift(1).rolling(window=self.window).mean()
+        else:
+            X[f'Form_{self.column}'] = np.sqrt((X[self.column] ** 2).rolling(window=self.window).mean()) / X[self.column].rolling(window=self.window).mean()
         return X
 
-
 class Skew(TransformerMixin, BaseEstimator):
-    def __init__(self, column, window=50):
+    def __init__(self, column, label=False, window=50):
         self.column = column
         self.window = window
-        pass
+        self.label = label
 
     def fit(self, X, y=None):
         return self
 
     def transform(self, X, y=None):
-        X[f'Skew_{self.column}'] = X[self.column].rolling(window=self.window).skew()
+        if self.label:
+            X[f'Skew_{self.column}'] = X[self.column].shift(1).rolling(window=self.window).skew()
+        else:
+            X[f'Skew_{self.column}'] = X[self.column].rolling(window=self.window).skew()
         return X

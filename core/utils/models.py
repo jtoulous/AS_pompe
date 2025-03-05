@@ -3,6 +3,7 @@ import logging
 import pickle
 import json
 
+# Semi supervised Models
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor
@@ -10,23 +11,18 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import GridSearchCV
 
+# Time series models
+from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
+from catboost import CatBoostRegressor
+#from statsmodels.tsa.arima.model import ARIMA
+#from statsmodels.tsa.statespace.sarimax import SARIMAX
+#from statsmodels.tsa.holtwinters import ExponentialSmoothing
+#from tensorflow.keras.models import Sequential
+#from tensorflow.keras.layers import LSTM
 
 
-def GetModels(models_wanted, grid_search=False, X=None, y=None): # RAJOUTER LE GRID SEARCH EVENTUELLEMENT
-    logging.info(f'Initializing models...')
-    models = []
-    for model in models_wanted:
-        models.append(InitModel(model))
-
-    if grid_search == True:
-        for i in range(len(models)):
-            models[i] = GridSearch(models[i], X, y)
-
-    return models
-
-
-
-def AvailableModels():
+def RegressionModels():
     available_models = [
         'LinearRegression',
         'Ridge',
@@ -43,15 +39,32 @@ def AvailableModels():
     return available_models
 
 
-def CheckModels(chosen_models):
-    available_models = AvailableModels()
-    for model in chosen_models:
-        if model not in available_models:
-            return False
-    return True
+def TimeSeriesModels():
+    available_models = [
+#        'ARIMA',
+#        'SARIMAX',
+#        'ExponentialSmoothing',
+        'XGBoost',
+        'LightGBM',
+        'CatBoost',
+#        'LSTM',
+    ]
+    return available_models
 
 
-def InitModel(model_name):
+
+def GetModelsToTest(agent_type):
+    if agent_type == 'Regression':
+        return RegressionModels()
+    elif agent_type == 'Time Series':
+        return TimeSeriesModels()
+    else:
+        raise Exception(f'Error: {agent_type} no such model type.')
+
+
+
+def InitModel(model_name, variable=None, predictors=None):
+    # Regression models
     if model_name == 'LinearRegression':
         return LinearRegression()
     
@@ -86,109 +99,51 @@ def InitModel(model_name):
         return KNeighborsRegressor()
 
 
-def GridSearch(model, X_train, y_train):
-    logging.info(f'Grid searching for {model.__class__.__name__}...')        
-    if model.__class__.__name__ == 'LinearRegression':
+    # Time Series Models
+    if model_name == 'ARIMA':
+        return ARIMA(variable, order=(1, 1, 1))
+
+    elif model_name == 'SARIMAX':
+        return SARIMAX(variable, exog=predictors, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+
+    elif model_name == 'ExponentialSmoothing':
+        return ExponentialSmoothing(variable, trend='add', seasonal=None)
+
+    elif model_name == 'XGBoost':
+        return XGBRegressor()
+
+    elif model_name == 'LightGBM':
+        return LGBMRegressor(verbose=-1)
+
+    elif model_name == 'CatBoost':
+        return CatBoostRegressor(verbose=0)
+
+    elif model_name == 'LSTM':
+        model = Sequential([
+            LSTM(50, activation='relu', return_sequences=True, input_shape=(None, 1)),
+            LSTM(50, activation='relu'),
+            Dense(1)
+        ])
+        model.compile(optimizer='adam', loss='mse')
         return model
 
-    param_grid = GetGrid(model.__class__.__name__)
-
-    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1, verbose=0)
-    grid_search.fit(X_train, y_train)
-
-    best_params = grid_search.best_params_
-    model_with_best_params = model.__class__(**best_params)
-    logging.info(f'  ==> best params: {best_params}')
-    return model_with_best_params
 
 
-
-# Get params to test
-def GetGrid(model_name):
-    param_grid = {}
-    if model_name == 'LinearRegression':
-        param_grid = {} # Pas d'hyperparamètres à régler pour la régression linéaire standard
-    
-    elif model_name == 'Ridge':
-        param_grid = {
-            'alpha': [0.1, 1.0, 10.0]
-        }
-    
-    elif model_name == 'Lasso':
-        param_grid = {
-            'alpha': [0.001, 0.01, 0.1, 1.0, 10.0]
-        }
-    
-    elif model_name == 'ElasticNet':
-        param_grid = {
-            'alpha': [0.001, 0.01, 0.1, 1.0, 10.0],
-            'l1_ratio': [0.1, 0.5, 0.9]
-        }
-    
-    elif model_name == 'DecisionTreeRegressor':
-        param_grid = {
-            'max_depth': [None, 5, 10, 20],
-            'min_samples_split': [2, 5, 10]
-        }
-    
-    elif model_name == 'RandomForestRegressor':
-        param_grid = {
-            'n_estimators': [100, 200, 300],
-            'max_depth': [None, 5, 10],
-            'min_samples_split': [2, 5, 10]
-        }
-    
-    elif model_name == 'GradientBoostingRegressor':
-        param_grid = {
-            'n_estimators': [100, 200, 300],
-            'learning_rate': [0.01, 0.1, 0.2],
-            'max_depth': [3, 5, 7]
-        }
-    
-    elif model_name == 'AdaBoostRegressor':
-        param_grid = {
-            'n_estimators': [50, 100, 200],
-            'learning_rate': [0.01, 0.1, 1.0]
-        }
-    
-    elif model_name == 'BaggingRegressor':
-        param_grid = {
-            'n_estimators': [10, 50, 100],
-            'max_samples': [0.5, 0.75, 1.0]
-        }
-    
-    elif model_name == 'SVR':
-        param_grid = {
-            'C': [0.1, 1, 10],
-            'epsilon': [0.01, 0.1, 0.5]
-        }
-    
-    elif model_name == 'KNeighborsRegressor':
-        param_grid = {
-            'n_neighbors': [3, 5, 7, 9],
-            'weights': ['uniform', 'distance']
-        }
-    
-#    elif model_name == 'XGBoost':
-#        param_grid = {
-#            'n_estimators': [100, 200, 300],
-#            'learning_rate': [0.01, 0.1, 0.2],
-#            'max_depth': [3, 5, 7]
-#        }
-    return param_grid
-
-
-
-
-def SaveModel(save_repo, label, best_model, results, agent):
-    logging.info(f'Saving best model and metrics for {label}...\n')
-    with open(f'{save_repo}/models/{agent}/{label}_best_model.pkl', 'wb') as model_file:
+def SaveModel(save_repo, variable, best_model, results, agent):
+    logging.info(f'Saving best model and metrics for {variable}...\n')
+    with open(f'{save_repo}/{agent}/models/{variable}_best_model.pkl', 'wb') as model_file:
         pickle.dump(best_model['model'], model_file)
 
-    with open(f'{save_repo}/results/{agent}/{label}/metrics.json', 'w') as metrics_file:
+    with open(f'{save_repo}/{agent}/results/{variable}/metrics.json', 'w') as metrics_file:
         json.dump({'best_model': best_model['results'], 'all_models': results}, metrics_file)
 
 
+def LoadModel(save_repo, agent, variable):
+    model_filename = f'{save_repo}/{agent}/models/{variable}_best_model.pkl'
+
+    with open(model_filename, 'rb') as model_file:
+        model = pickle.load(model_file)
+    return model
 
 
 

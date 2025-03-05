@@ -6,11 +6,11 @@ import shutil
 import pandas as pd
 import argparse as ap
 import numpy as np
-import altair as alt
 from colorama import Fore, Style
 
-from utils.tools import LoadModel, LoadMetrics
-from utils.filter import LoadFilters
+from utils.tools import LoadMetrics, SaveResults
+from utils.models import LoadModel 
+from utils.filter import FilterDataframe
 
 
 def Parsing():
@@ -27,96 +27,13 @@ def Parsing():
     """
 
     parser = ap.ArgumentParser()
-    parser.add_argument('datafile', type=str, help='csv datafile to predict')
-    parser.add_argument('load', type=str, help='repo with saved models')
-
-    args = parser.parse_args()
-    args.load = os.path.join(os.getcwd(), 'data', args.load)
-
-    # Suppression des anciennes inferences
-    if os.path.exists(f'{args.load}/inference_results'):
-        shutil.rmtree(f'{args.load}/inference_results')
-    
-    return args
+    parser.add_argument('config', type=str, help='yaml config file')
+    parser.add_argument('-live', action='store_true', default=False, help='real time mode(no batch predictions)')
+    return parser.parse_args()
 
 
 
-def SaveResults(save_repo, weights, model_discrepancy, inference_results, status, agent):
-    """
-    Sauvegarde les resultat de l'inference.
-
-    Args:
-        save_repo (str): le path du dossier de l'equipement.
-        weights (dict): les poids des variables, {variable: poid}.
-        model_discrepancy (float): le discrepancy du model.
-        inference_results (dict): les resultat des inferences et les vrais valeurs pour chaque variable dans un df, {variable: df}
-        status(str): green ou red.
-        agent(str): nom de l'agent.
-
-    Return:
-        None    
-    """
-    output_folder = f'{save_repo}/inference_results/{agent}'
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Save les dfs d'inferences
-    for label, df in inference_results.items():
-        df.to_csv(f'{output_folder}/{label}_results.csv', sep=';', index=None)
-
-    results = {
-        "weights": weights,
-        "model_discrepancy": model_discrepancy,
-        "status": status
-    }
-
-    # Save les resultats
-    with open(f'{output_folder}/results.json', "w") as f:
-        json.dump(results, f, indent=4)
-
-    # Creation des charts avec les weights
-    CreatePlot(output_folder, weights, model_discrepancy, status)
-
-
-
-def CreatePlot(save_repo, weights, model_discrepancy, status):
-    """
-    Cree le plot des poids.
-
-    Args:
-        save_repo (str): le path du dossier de l'equipement.
-        weights (dict): les poids des variables, {variable: poid}.
-        model_discrepancy (float): le discrepancy du modele.
-        status(str): green ou red.
-
-    Return:
-        None
-    """
-
-    # Créer un DataFrame à partir des poids
-    weights_df = pd.DataFrame(list(weights.items()), columns=["Variable", "Weight"])
-
-    # Créer un graphique interactif avec Altair
-    chart = alt.Chart(weights_df).mark_bar().encode(
-        x=alt.X('Variable:N', sort='-y', title='Variable'),
-        y=alt.Y('Weight:Q', title='Weight (%)'),
-        tooltip=['Variable', 'Weight']
-    ).properties(
-        title='Variable Weights',
-        width=800,
-        height=400
-    ).interactive()
-    
-    chart.save(f'{save_repo}/weights_chart.html')
-
-    if status == 'green':
-        print(Fore.GREEN + "Status: Green" + Style.RESET_ALL)
-    else:
-        print(Fore.RED + "Status: Red" + Style.RESET_ALL)
-    print(f"Global Model Deviation: {model_discrepancy:.2f}")
-
-
-
-def Predict(df, args, agent, agents_variables):
+def Predict(df, agent, agent_config, save_repo):
     """
     Fait l'inference.
 
@@ -133,47 +50,52 @@ def Predict(df, args, agent, agents_variables):
     inference_results = {}
     total_relative_deviation = {}
     total_relative_deviation_sum = 0
+    agents_variables = agent_config['variables']
 
-    for label, features in agents_variables.items():
-        model = LoadModel(args.load, agent, label) 
-        training_rmse, range_dict = LoadMetrics(args.load, agent, label)
+    for variable, features in agents_variables.items():
+        model = LoadModel(save_repo, agent, variable) 
+        training_rmse, range_dict = LoadMetrics(save_repo, agent, variable)
 
         X = df[features]
         y_pred = model.predict(X)
         max_val = range_dict['max_value']
         min_val = range_dict['min_value']
 
-        relative_deviation = ((df[label] - y_pred) / (max_val - min_val)) ** 2
+        relative_deviation = ((df[variable] - y_pred) / (max_val - min_val)) ** 2
 
-        inference_results[label] = pd.DataFrame({
+        inference_results[variable] = pd.DataFrame({
             'Date': df['Date'],
-            f'Actual_{label}': df[label],
-            f'Predicted_{label}': y_pred,
-            f'Relative_Deviation_{label}': relative_deviation
+            f'Actual_{variable}': df[variable],
+            f'Predicted_{variable}': y_pred,
+            f'Relative_Deviation_{variable}': relative_deviation
         })
 
-        # a rajouter: save le df
-
-        total_relative_deviation[label] = relative_deviation.abs().sum()
-        total_relative_deviation_sum += total_relative_deviation[label]
+        total_relative_deviation[variable] = relative_deviation.abs().sum()
+        total_relative_deviation_sum += total_relative_deviation[variable]
 
     n_variables = len(agents_variables)
     model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
     status = "green" if model_discrepancy <= 3 else "red"
 
     weights = {}
-    for label in agents_variables.keys():
-        label_relative_deviation = total_relative_deviation[label]
-        weight = label_relative_deviation / total_relative_deviation_sum
-        weights[label] = weight * 100
+    for variable in agents_variables.keys():
+        variable_relative_deviation = total_relative_deviation[variable]
+        weight = variable_relative_deviation / total_relative_deviation_sum
+        weights[variable] = weight * 100
     weights = dict(sorted(weights.items(), key=lambda item: item[1], reverse=True))
 
-    SaveResults(args.load, weights, model_discrepancy, inference_results, status, agent)
+    SaveResults(save_repo, weights, model_discrepancy, inference_results, status, agent)
+    
+    if status == 'green':
+        print(Fore.GREEN + "Status: Green" + Style.RESET_ALL)
+    else:
+        print(Fore.RED + "Status: Red" + Style.RESET_ALL)
+    print(f"Global Model Deviation: {model_discrepancy:.2f}")
     return status
 
 
 
-def CheckFirstAnomaly(df, args, agent, agents_variables, batch_size=20):
+def CheckFirstAnomaly(df, agent, agent_config, save_repo, batch_size=20):
     """
     Fait l'inference par batch si la taille du df le permet, pour localiser precisement le debut de la derive.
 
@@ -186,22 +108,28 @@ def CheckFirstAnomaly(df, args, agent, agents_variables, batch_size=20):
     Return:
         None
     """
+
+    if len(df) < 10: # Si y a pas assez de data
+        return
+
+    agents_variables = agent_config['variables']
+
     for _, batch in df.groupby(np.arange(len(df)) // batch_size):
         total_relative_deviation = {}
         total_relative_deviation_sum = 0
         
-        for label, features in agents_variables.items():
-            model = LoadModel(args.load, agent, label) 
-            _, range_dict = LoadMetrics(args.load, agent, label)
+        for variable, features in agents_variables.items():
+            model = LoadModel(save_repo, agent, variable) 
+            _, range_dict = LoadMetrics(save_repo, agent, variable)
 
             X = batch[features]
             y_pred = model.predict(X)
             max_val = range_dict['max_value']
             min_val = range_dict['min_value']
 
-            relative_deviation = ((batch[label] - y_pred) / (max_val - min_val)) ** 2
-            total_relative_deviation[label] = relative_deviation.abs().sum()
-            total_relative_deviation_sum += total_relative_deviation[label]
+            relative_deviation = ((batch[variable] - y_pred) / (max_val - min_val)) ** 2
+            total_relative_deviation[variable] = relative_deviation.abs().sum()
+            total_relative_deviation_sum += total_relative_deviation[variable]
 
         n_variables = len(agents_variables)
         model_discrepancy = np.sqrt(total_relative_deviation_sum / n_variables)
@@ -218,6 +146,56 @@ def CheckFirstAnomaly(df, args, agent, agents_variables, batch_size=20):
 
 
 
+def InferenceOnHistorical(workflow_config, save_repo):
+    status = {}
+    print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
+        
+    df_master = pd.read_csv(workflow_config['Master']['df_predict'], sep=';')
+    if 'filters' in workflow_config['Master']:
+        df_master = FilterDataframe(df_master, 'Master', workflow_config['Master']['filters'], save_repo)
+
+    status['Master'] = Predict(df_master, 'Master', workflow_config['Master'], save_repo)
+    if status['Master'] == 'red':
+        CheckFirstAnomaly(df_master, 'Master', workflow_config['Master'], save_repo) # Fait les inferences par batch pour trouver le commencement de la derive
+            
+        # If status is red, make inferences with subagents
+        subagents = [agent for agent in workflow_config.keys() if agent != 'Master']
+        for agent in subagents:
+            print(Fore.BLUE + f'\n========  Inference {agent}  ========' + Style.RESET_ALL)
+
+            df_subagent = pd.read_csv(workflow_config[agent]['df_predict'], sep=';')
+            if 'filters' in workflow_config[agent]:
+                df_subagent = FilterDataframe(df_subagent, subagents, workflow_config[agent]['filters'], save_repo)
+
+            status[agent] = Predict(df_subagent, agent, workflow_config[agent], save_repo)
+            if status[agent] == 'red':
+                CheckFirstAnomaly(df_subagent, agent, workflow_config[agent], save_repo)
+    return status
+
+
+
+def InferenceOnRealTime(workflow_config, save_repo):
+    status = {}
+    print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
+        
+    df_master = pd.read_csv(workflow_config['Master']['df_predict'], sep=';')
+    if 'filters' in workflow_config['Master']:
+        df_master = FilterDataframe(df_master, 'Master', workflow_config['Master']['filters'], save_repo)
+
+    status['Master'] = Predict(df_master, 'Master', workflow_config['Master'], save_repo)
+    if status == 'red':
+        # If status is red, make inferences with subagents
+        subagents = [agent for agent in config.keys() if agent != 'Master']
+        for agent in subagents:
+            print(Fore.BLUE + f'\n========  Inference {agent}  ========' + Style.RESET_ALL)
+
+            df_subagent = pd.read_csv(config[agent]['df_predict'], sep=';')
+            if 'filters' in config[agent]:
+                df_subagent = FilterDataframe(df_subagent, subagents, workflow_config[agent]['filters'], save_repo)
+
+            status[agent] = Predict(df_subagent, agent, config[agent], save_repo)
+    return status
+
 
 
 if __name__ == '__main__':
@@ -225,29 +203,19 @@ if __name__ == '__main__':
         args = Parsing()        
         config = None
 
-        # Load dataframe + filter it
-        df = pd.read_csv(args.datafile, sep=';')
-        df = LoadFilters(df, args.load)
-
         # Load conf.yaml
-        with open(f'{args.load}/conf.yaml', 'r') as config_file:
+        with open(f'{args.config}', 'r') as config_file:
             config = yaml.safe_load(config_file)
+       
+        system_config = config['System']
+        workflow_config = config['Workflow']
+        if args.live:
+            status = InferenceOnRealTime(workflow_config, system_config['save_repo'])
+        else:
+            status = InferenceOnHistorical(workflow_config, system_config['save_repo'])
 
-        # Master agent predicts
-        print(Fore.BLUE + '\n========  Inference Master  ========' + Style.RESET_ALL)
-        status = Predict(df, args, 'Master', config['Master'])
-        
-        if status == 'red':
-            CheckFirstAnomaly(df, args, 'Master', config['Master']) # Fait les inferences par batch pour trouver le commencement de la derive
-
-            # If status is red, make inferences with subagents
-            subagents = [agent for agent in config.keys() if agent != 'Master']
-            for agent in subagents:
-                print(Fore.BLUE + f'\n========  Inference {agent}  ========' + Style.RESET_ALL)
-                status = Predict(df, args, agent, config[agent])
-                if status == 'red':
-                    CheckFirstAnomaly(df, args, agent, config[agent])
-
+        with open(f'{system_config['save_repo']}/inference_results/inferences.json', 'w') as results_file:
+            json.dump(status, results_file, indent=4)
 
     except Exception as error:
         print(error)

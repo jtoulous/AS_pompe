@@ -1,0 +1,48 @@
+System:
+  save_repo: "data/pump_1"
+Workflow:
+#  Master:
+#    training_type: "Semi Supervised"
+#    model_type: "Regression"
+#    df_train: "data/to_test/train.csv"
+#    df_predict: "data/to_test/PumpStation_1.1.4.3.40_test.csv"
+#    variables:
+#      "headloss": ['instantaneous_flow','integrated_flow','raw_power','speed']
+#      "instantaneous_flow": ['headloss','integrated_flow','raw_power','speed']
+#      "integrated_flow": ['headloss','instantaneous_flow','raw_power','speed']
+#      "raw_power": ['headloss','instantaneous_flow','integrated_flow','speed']
+#      "speed": ['headloss','instantaneous_flow','integrated_flow','raw_power']
+#    filters:
+#      "Current": ["Greater than", 2]
+  
+  Motors:
+    training_type: "Semi Supervised"
+    model_type: "Regression"
+    df_train: "data/to_test/train.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "motor_load": ['headloss', 'integrated_flow','speed']
+      "motor_efficiency": ['headloss', 'integrated_flow','speed']
+      "acceleration": ['headloss', 'integrated_flow','raw_power','speed']
+
+
+  Hydraulics:
+    training_type: "Semi Supervised"  
+    model_type: "Regression"
+    df_train: "data/to_test/train.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "flow_resistance": ['integrated_flow','raw_power','speed']
+      "hydraulic_efficiency": ['headloss','raw_power','speed']
+      "flow_stability": ['headloss','integrated_flow','raw_power','speed']
+
+
+  Electrics:
+    training_type: "Semi Supervised"
+    model_type: "Regression"
+    df_train: "data/to_test/train.csv"
+    df_predict: "data/a_preprocessed.csv"
+    variables:
+      "power_stability'": ['headloss', 'instantaneous_flow','integrated_flow','speed']
+      "power_speed_ratio": ['headloss', 'instantaneous_flow','integrated_flow']
+      "energy_loss": ['instantaneous_flow','integrated_flow','speed']
